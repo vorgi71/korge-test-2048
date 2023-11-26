@@ -1,9 +1,11 @@
+import korlibs.event.*
 import korlibs.image.color.*
 import korlibs.image.font.*
 import korlibs.image.format.*
 import korlibs.image.text.*
 import korlibs.io.file.std.*
 import korlibs.korge.*
+import korlibs.korge.input.*
 import korlibs.korge.scene.*
 import korlibs.korge.view.*
 import korlibs.korge.view.align.*
@@ -42,7 +44,7 @@ object MainData {
 
 class MyScene : Scene() {
 
-  val md = MainData
+  private val md = MainData
 
   override suspend fun SContainer.sceneMain() {
     md.cellSize = views.virtualWidth / 5.0
@@ -126,18 +128,44 @@ class MyScene : Scene() {
 
     generateBlock()
 
+    keys {
+      down {
+        when (it.key) {
+          Key.LEFT, Key.A -> moveTilesTo(Direction.LEFT)
+          Key.RIGHT, Key.D -> moveTilesTo(Direction.RIGHT)
+          Key.UP, Key.W -> moveTilesTo(Direction.TOP)
+          Key.DOWN, Key.S -> moveTilesTo(Direction.BOTTOM)
+          else -> Unit
+        }
+      }
+    }
+
+    onSwipe(20.0) {
+      when(it.direction) {
+        SwipeDirection.LEFT -> moveTilesTo(Direction.LEFT)
+        SwipeDirection.RIGHT -> moveTilesTo(Direction.RIGHT)
+        SwipeDirection.TOP -> moveTilesTo(Direction.TOP)
+        SwipeDirection.BOTTOM -> moveTilesTo(Direction.BOTTOM)
+      }
+    }
+
+  }
+
+  fun moveTilesTo(direction: Direction) {
+    println("moveTilesTo(${direction.name})")
+    // @todo: next step
   }
 }
 
 fun Container.createTileWithId(id: Int, tileNumber: TileNumber, pos: Position) {
-  MainData.tiles[id]=tile(tileNumber) {
-    position(MainData.xOffset(pos.x),MainData.yOffset(pos.y))
+  MainData.tiles[id] = tile(tileNumber) {
+    position(MainData.xOffset(pos.x), MainData.yOffset(pos.y))
   }
 }
 
-fun Container.createTile(tileNumber: TileNumber,pos:Position): Int {
-  var id=MainData.getFreeId()
-  createTileWithId(id,tileNumber,pos)
+fun Container.createTile(tileNumber: TileNumber, pos: Position): Int {
+  val id = MainData.getFreeId()
+  createTileWithId(id, tileNumber, pos)
   return id
 }
 
@@ -145,5 +173,5 @@ fun Container.generateBlock() {
   val freePosition = MainData.positionMap.getRandomFreePosition() ?: return
   val number = if (Random.nextDouble() < 0.9) TileNumber.ZERO else TileNumber.ONE
   val newId = createTile(number, freePosition)
-  MainData.positionMap.setId(freePosition.x, freePosition.y,newId)
+  MainData.positionMap.setId(freePosition.x, freePosition.y, newId)
 }
