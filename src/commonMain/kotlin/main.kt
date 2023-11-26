@@ -1,14 +1,16 @@
-import korlibs.korge.*
-import korlibs.korge.scene.*
-import korlibs.korge.view.*
 import korlibs.image.color.*
 import korlibs.image.font.*
 import korlibs.image.format.*
 import korlibs.image.text.*
 import korlibs.io.file.std.*
-import korlibs.korge.ui.*
+import korlibs.korge.*
+import korlibs.korge.scene.*
+import korlibs.korge.view.*
 import korlibs.korge.view.align.*
 import korlibs.math.geom.*
+import my2048.*
+import kotlin.properties.*
+import kotlin.random.*
 
 suspend fun main() = Korge(
   windowSize = Size(480, 640),
@@ -20,64 +22,85 @@ suspend fun main() = Korge(
   sceneContainer.changeTo { MyScene() }
 }
 
-class MyScene : Scene() {
-  override suspend fun SContainer.sceneMain() {
-    val cellSize = views.virtualWidth / 5.0
-    val fieldSize = 50 + 4 * cellSize
-    val leftIndent = (views.virtualWidth - fieldSize) / 2
-    val topIndent = 150.0
+object MainData {
+  var cellSize = 0.0
+  var fieldSize = 0.0
+  var leftIndent = 0.0
+  var topIndent = 0.0
+  var font: BitmapFont by Delegates.notNull()
 
-    val bgField = roundRect(Size(fieldSize, fieldSize), RectCorners(5.0), fill = Colors["#b9aea0"]) {
-      position(leftIndent, topIndent)
+  val tiles = mutableMapOf<Int, Tile>()
+  private var freeId = 0
+  val positionMap = PositionMap()
+
+  fun xOffset(x: Int) = leftIndent + 10.0 + (10 + cellSize) * x
+  fun yOffset(y: Int) = topIndent + 10.0 + (10 + cellSize) * y
+  fun getFreeId(): Int {
+    return freeId++
+  }
+}
+
+class MyScene : Scene() {
+
+  val md = MainData
+
+  override suspend fun SContainer.sceneMain() {
+    md.cellSize = views.virtualWidth / 5.0
+    md.fieldSize = 50 + 4 * md.cellSize
+    md.leftIndent = (views.virtualWidth - md.fieldSize) / 2
+    md.topIndent = 150.0
+
+    val bgField = roundRect(Size(md.fieldSize, md.fieldSize), RectCorners(5.0), fill = Colors["#b9aea0"]) {
+      position(md.leftIndent, md.topIndent)
     }
 
     graphics {
-      it.position(leftIndent, topIndent)
+      it.position(md.leftIndent, md.topIndent)
       fill(Colors["#a09e80"]) {
         for (y in 0..<4) {
           for (x in 0..<4) {
-            roundRect(10.0 + (10 + cellSize) * x, 10.0 + (10 + cellSize) * y, cellSize, cellSize, 5.0, 5.0)
+            roundRect(10.0 + (10 + md.cellSize) * x, 10.0 + (10 + md.cellSize) * y, md.cellSize, md.cellSize, 5.0, 5.0)
           }
         }
       }
     }
 
-    val bgLogo = roundRect(Size(cellSize, cellSize), RectCorners(5.0), fill = Colors["#edc403"]) {
-      position(leftIndent, 30.0)
+    val bgLogo = roundRect(Size(md.cellSize, md.cellSize), RectCorners(5.0), fill = Colors["#edc403"]) {
+      position(md.leftIndent, 30.0)
     }
 
-    val bgBest = roundRect(Size(cellSize * 1.5, cellSize * 0.8), RectCorners(5.0), fill = Colors["#bbae9e"]) {
+    val bgBest = roundRect(Size(md.cellSize * 1.5, md.cellSize * 0.8), RectCorners(5.0), fill = Colors["#bbae9e"]) {
       alignRightToRightOf(bgField)
       alignTopToTopOf(bgLogo)
     }
-    val bgScore = roundRect(Size(cellSize * 1.5, cellSize * 0.8), RectCorners(5.0), fill = Colors["#bbae9e"]) {
+    val bgScore = roundRect(Size(md.cellSize * 1.5, md.cellSize * 0.8), RectCorners(5.0), fill = Colors["#bbae9e"]) {
       alignRightToLeftOf(bgBest, 24)
       alignTopToTopOf(bgBest)
     }
 
-    val sansFont = resourcesVfs["clear_sans.fnt"].readBitmapFont()
+    md.font = resourcesVfs["clear_sans.fnt"].readBitmapFont()
 
-    text("2048", cellSize*0.5, Colors.WHITE, sansFont).centerOn(bgLogo)
-    text("BEST", cellSize*0.25, RGBA(239,226,210),sansFont) {
+    text("2048", md.cellSize * 0.5, Colors.WHITE, md.font).centerOn(bgLogo)
+    text("BEST", md.cellSize * 0.25, RGBA(239, 226, 210), md.font) {
       centerXOn(bgBest)
-      alignTopToTopOf(bgBest,5.0)
+      alignTopToTopOf(bgBest, 5.0)
     }
-    text("0",cellSize*0.5,Colors.WHITE,sansFont) {
+    text("0", md.cellSize * 0.5, Colors.WHITE, md.font) {
       alignment = TextAlignment.MIDDLE_CENTER
       alignTopToTopOf(bgBest, 20.0)
       centerXOn(bgBest)
     }
-    text("SCORE", cellSize*0.25, RGBA(239,226,210),sansFont) {
+    text("SCORE", md.cellSize * 0.25, RGBA(239, 226, 210), md.font) {
       centerXOn(bgScore)
-      alignTopToTopOf(bgScore,5.0)
+      alignTopToTopOf(bgScore, 5.0)
     }
-    text("0",cellSize*0.5,Colors.WHITE,sansFont) {
+    text("0", md.cellSize * 0.5, Colors.WHITE, md.font) {
       alignment = TextAlignment.MIDDLE_CENTER
       alignTopToTopOf(bgScore, 20.0)
       centerXOn(bgScore)
     }
 
-    val btnSize = cellSize * 0.3
+    val btnSize = md.cellSize * 0.3
 
     val restartImg = resourcesVfs["restart.png"].readBitmap()
     val undoImg = resourcesVfs["undo.png"].readBitmap()
@@ -101,5 +124,26 @@ class MyScene : Scene() {
       alignRightToLeftOf(restartBlock, 5.0)
     }
 
+    generateBlock()
+
   }
+}
+
+fun Container.createTileWithId(id: Int, tileNumber: TileNumber, pos: Position) {
+  MainData.tiles[id]=tile(tileNumber) {
+    position(MainData.xOffset(pos.x),MainData.yOffset(pos.y))
+  }
+}
+
+fun Container.createTile(tileNumber: TileNumber,pos:Position): Int {
+  var id=MainData.getFreeId()
+  createTileWithId(id,tileNumber,pos)
+  return id
+}
+
+fun Container.generateBlock() {
+  val freePosition = MainData.positionMap.getRandomFreePosition() ?: return
+  val number = if (Random.nextDouble() < 0.9) TileNumber.ZERO else TileNumber.ONE
+  val newId = createTile(number, freePosition)
+  MainData.positionMap.setId(freePosition.x, freePosition.y,newId)
 }
