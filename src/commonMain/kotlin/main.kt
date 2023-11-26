@@ -167,10 +167,10 @@ class MyScene : Scene() {
 
     onSwipe(20.0) {
       when (it.direction) {
-        SwipeDirection.LEFT -> stage?.moveTilesTo(Direction.LEFT)
-        SwipeDirection.RIGHT -> stage?.moveTilesTo(Direction.RIGHT)
-        SwipeDirection.TOP -> stage?.moveTilesTo(Direction.TOP)
-        SwipeDirection.BOTTOM -> stage?.moveTilesTo(Direction.BOTTOM)
+        SwipeDirection.LEFT -> stage.moveTilesTo(Direction.LEFT)
+        SwipeDirection.RIGHT -> stage.moveTilesTo(Direction.RIGHT)
+        SwipeDirection.TOP -> stage.moveTilesTo(Direction.TOP)
+        SwipeDirection.BOTTOM -> stage.moveTilesTo(Direction.BOTTOM)
       }
     }
 
