@@ -224,7 +224,6 @@ fun Stage.moveTilesTo(direction: Direction) {
       generateBlock()
       MainData.isAnimationRunning = false
     }
-    MainData.isAnimationRunning = false
   }
 }
 
