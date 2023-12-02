@@ -1,6 +1,7 @@
 package omnipede
 
 import korlibs.audio.sound.*
+import korlibs.datastructure.iterators.*
 import korlibs.event.*
 import korlibs.image.color.*
 import korlibs.image.font.*
@@ -29,11 +30,12 @@ class StartScene : Scene() {
     var zap = resourcesVfs["zap.wav"].readSound()
 
     var mushroomSpriteMap = resourcesVfs["Mushroom.png"].readBitmap()
-    var mushroomAnimation = SpriteAnimation(mushroomSpriteMap,8,8, columns = 4)
+    var mushroomAnimation = SpriteAnimation(mushroomSpriteMap, 8, 8, columns = 4)
 
+    var playerSprite = resourcesVfs["Player.png"].readBitmap()
     var flowerSprite = resourcesVfs["Flower.png"].readBitmap()
 
-    var cellSize = max(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
+    var cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
     var fieldWidth = cellSize * 30
     var leftIndent = (views.virtualWidth - fieldWidth) / 2
     var fieldHeight = cellSize * 32
@@ -41,19 +43,27 @@ class StartScene : Scene() {
 
     val bgField = roundRect(Size(fieldWidth, fieldHeight), RectCorners(1.0), fill = Colors["#1E1F22"]) {
       position(leftIndent, topIndent)
-    }
-    val playerField = roundRect(Size(fieldWidth, 6 * cellSize), RectCorners(1.0), fill = Colors["#1a401d"]) {
-      position(leftIndent, topIndent + 24 * cellSize)
-    }
-    var player: RoundRect = roundRect(Size(cellSize, cellSize), RectCorners(cellSize / 2), fill = Colors.GOLD) {
-      position(leftIndent + cellSize * 15, topIndent + cellSize * 29)
-    }
-    var missile: RoundRect = roundRect(Size(4, cellSize), RectCorners(1), Colors.LIGHTCORAL) {
-      position(leftIndent + cellSize * 15, topIndent + cellSize * 29)
-      hitTestEnabled=true
+      hitTestEnabled = false
     }
 
-    Lawn.init(this,cellSize,mushroomAnimation,flowerSprite,126)
+    val playerField = roundRect(Size(fieldWidth, 6 * cellSize), RectCorners(1.0), fill = Colors["#1a401d"]) {
+      position(leftIndent, topIndent + 24 * cellSize)
+      hitTestEnabled = false
+    }
+
+    var player = image(playerSprite) {
+      smoothing = false
+      scale = (cellSize.toDouble() / bitmap.width)
+      position(15 * cellSize, 32 * cellSize)
+      hitTestEnabled = true
+    }
+
+    var missile: RoundRect = roundRect(Size(4, cellSize), RectCorners(1), Colors.LIGHTCORAL) {
+      position(leftIndent + cellSize * 15, topIndent + cellSize * 29)
+      hitTestEnabled = true
+    }
+
+    Lawn.init(this, cellSize, mushroomAnimation, flowerSprite, 126)
 
     var infoText: Text = text("2048", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent + cellSize * 30)
 
@@ -72,9 +82,24 @@ class StartScene : Scene() {
       val pos: Point = rawGamepad0[GameStick.LEFT]
       infoText.text = "pos: $pos start: $pressedStart pressedX: $pressedX shooting: $shooting"
       player.x += pos.x * (cellSize / 2)
-      player.x = player.x.clamp(playerField.x,playerField.x+playerField.width-cellSize)
       player.y -= pos.y * (cellSize / 3)
-      player.y = player.y.clamp(playerField.y,playerField.y+playerField.height-cellSize)
+
+      var playerHit = collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)
+      if (playerHit != null) {
+        var gridX = (player.x / cellSize).roundToInt()
+        var gridY = (player.y / cellSize).roundToInt()
+        var dirX = if (pos.x > 0.2) 1 else if (pos.x < -0.2) -1 else 0
+        var dirY = if (pos.y > 0.2) 1 else if (pos.y < -0.2) -1 else 0
+        if (Lawn.get(gridX, gridY) == null) {
+          player.x = (gridX * cellSize).toDouble()
+          player.y = (gridY * cellSize).toDouble()
+        }
+      }
+
+      player.x = player.x.clamp(playerField.x, playerField.x + playerField.width - cellSize)
+
+
+      player.y = player.y.clamp(playerField.y, playerField.y + playerField.height - cellSize)
 
       if (!shooting) {
         missile.x = player.x + (cellSize / 2) - 2
@@ -82,16 +107,14 @@ class StartScene : Scene() {
       } else {
         missile.y -= 8
 
-        var missileHit=Lawn.getViewObjects().find {
-          val tempRect1 = it.getGlobalBounds()
-          val tempRect2 = missile.getGlobalBounds()
-          return@find tempRect1.intersects(tempRect2)
+        val missileHit = collisionWithViews(missile, Lawn.getViewObjects())
+
+        if (missileHit != null) {
+          val hitObject = Lawn.objects.find { lawnObject -> lawnObject.viewObject == missileHit }
+          hitObject?.hit()
         }
 
-        val hitObject=Lawn.objects.find { lawnObject -> lawnObject.viewObject==missileHit }
-        hitObject?.hit()
-
-        if (missile.y < 0 || missileHit!=null) {
+        if (missile.y < 0 || missileHit != null) {
           shooting = false
           missile.x = player.x + (cellSize / 2) - 2
           missile.y = player.y
@@ -109,6 +132,25 @@ class StartScene : Scene() {
       }
     }
 
+  }
+
+  private fun collisionWithViews(view: View, otherViews: List<View>, inset: Double = 0.0): View? {
+    var tempRect2 = view.getGlobalBounds()
+    if (inset > 0.0) {
+      tempRect2 = tempRect2.copy(
+        tempRect2.x + inset,
+        tempRect2.y + inset,
+        tempRect2.width - 2 * inset,
+        tempRect2.height - 2 * inset
+      )
+    }
+    otherViews.fastForEach {
+      val tempRect1 = it.getGlobalBounds()
+      if (tempRect1.intersects(tempRect2)) {
+        return it
+      }
+    }
+    return null
   }
 
 
