@@ -31,6 +31,8 @@ class StartScene : Scene() {
     var mushroomSpriteMap = resourcesVfs["Mushroom.png"].readBitmap()
     var mushroomAnimation = SpriteAnimation(mushroomSpriteMap,8,8, columns = 4)
 
+    var flowerSprite = resourcesVfs["Flower.png"].readBitmap()
+
     var cellSize = max(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
     var fieldWidth = cellSize * 30
     var leftIndent = (views.virtualWidth - fieldWidth) / 2
@@ -48,9 +50,10 @@ class StartScene : Scene() {
     }
     var missile: RoundRect = roundRect(Size(4, cellSize), RectCorners(1), Colors.LIGHTCORAL) {
       position(leftIndent + cellSize * 15, topIndent + cellSize * 29)
+      hitTestEnabled=true
     }
 
-    Lawn.init(this,cellSize,mushroomAnimation,mushroomSpriteMap,32)
+    Lawn.init(this,cellSize,mushroomAnimation,flowerSprite,126)
 
     var infoText: Text = text("2048", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent + cellSize * 30)
 
@@ -78,7 +81,17 @@ class StartScene : Scene() {
         missile.y = player.y
       } else {
         missile.y -= 8
-        if (missile.y < 0) {
+
+        var missileHit=Lawn.getViewObjects().find {
+          val tempRect1 = it.getGlobalBounds()
+          val tempRect2 = missile.getGlobalBounds()
+          return@find tempRect1.intersects(tempRect2)
+        }
+
+        val hitObject=Lawn.objects.find { lawnObject -> lawnObject.viewObject==missileHit }
+        hitObject?.hit()
+
+        if (missile.y < 0 || missileHit!=null) {
           shooting = false
           missile.x = player.x + (cellSize / 2) - 2
           missile.y = player.y
