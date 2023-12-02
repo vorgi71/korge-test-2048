@@ -73,19 +73,27 @@ class Flower(x: Int, y: Int, viewObject: View) : LawnObject(x, y, viewObject) {
 
 object Lawn {
   var objects: MutableList<LawnObject> = mutableListOf()
+  var cellSize = 16
+  var fieldWith = 250
+  var fieldHeight = 250
 
   fun init(
     parent: Container,
     cellSize: Int,
+    fieldWith: Int,
+    fieldHeight: Int,
     mushroomAnimation: SpriteAnimation,
     flowerSprite: Bitmap,
     mushroomCount: Int
   ) {
-    LawnObject.parent = parent
     LawnObject.cellSize = cellSize
+    this.cellSize = cellSize
+    this.fieldWith = fieldWith
+    this.fieldHeight = fieldHeight
+
+    LawnObject.parent = parent
     Mushroom.mushroomAnimation = mushroomAnimation
     Flower.flowerSprite = flowerSprite
-
 
     val random = Random(0)
     for (index in 0..<mushroomCount) {
@@ -116,7 +124,7 @@ object Lawn {
   fun dump() {
     for (y in 0..<32) {
       for (x in 0..<30) {
-        print(get(x, y)?.dumpChar?:'.')
+        print(get(x, y)?.dumpChar ?: '.')
       }
       println()
     }

@@ -16,7 +16,7 @@ import korlibs.math.geom.*
 import kotlin.math.*
 
 suspend fun main() = Korge(
-  windowSize = Size(480, 640),
+  windowSize = Size(640, 800),
   title = "omnipede",
   backgroundColor = RGBA(254, 247, 240)
 ) {
@@ -67,7 +67,7 @@ class StartScene : Scene() {
       hitTestEnabled = true
     }
 
-    Lawn.init(this, cellSize, mushroomAnimation, flowerSprite, 126)
+    Lawn.init(this, cellSize, fieldWidth, fieldHeight, mushroomAnimation, flowerSprite, 126)
 
     var infoText: Text = text("2048", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent + cellSize * 30)
 
@@ -106,23 +106,34 @@ class StartScene : Scene() {
 
       player.x = player.x.clamp(playerField.x, playerField.x + playerField.width - cellSize)
 
-
       player.y = player.y.clamp(playerField.y, playerField.y + playerField.height - cellSize)
 
       if (!shooting) {
         missile.x = player.x + (cellSize / 2) - 2
         missile.y = player.y
       } else {
-        missile.y -= 8
+        missile.y -= cellSize
 
-        val missileHit = collisionWithViews(missile, Lawn.getViewObjects())
+        var missileDestroyed=false
+        var missileHit = collisionWithViews(missile, Lawn.getViewObjects())
 
         if (missileHit != null) {
           val hitObject = Lawn.objects.find { lawnObject -> lawnObject.viewObject == missileHit }
           hitObject?.hit()
+          missileDestroyed=true
         }
 
-        if (missile.y < 0 || missileHit != null) {
+        missileHit=collisionWithViews(missile,LevelData.getEnemyViews())
+        if(missileHit !=null) {
+          missileDestroyed=true
+          missileHit.removeFromParent()
+          var enemy:Enemy?= missileHit.name?.let { name -> LevelData.getEnemy(name) }
+          if(enemy!=null) {
+            LevelData.despawn(enemy)
+          }
+        }
+
+        if (missile.y < 0 || missileDestroyed) {
           shooting = false
           missile.x = player.x + (cellSize / 2) - 2
           missile.y = player.y

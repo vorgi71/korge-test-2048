@@ -8,11 +8,11 @@ data class SpawnData(var enemyType: String, var spanProbability: Int, var maxSpa
 object LevelData {
   lateinit var parent: Container
 
-  var levelData = mapOf(1 to listOf(SpawnData("Spider", 1000, 10)))
+  var levelData = mapOf(1 to listOf(SpawnData("Spider", 50, 1)))
 
   var random = Random(0)
 
-  var enemyMap = mutableMapOf<String, MutableMap<String, View>>()
+  var enemyMap = mutableMapOf<String, MutableList<Enemy>>()
 
   fun init(parent: Container) {
     this.parent = parent
@@ -24,48 +24,57 @@ object LevelData {
     spawnList?.forEach { spawnData ->
       var spawnCount = enemyMap[spawnData.enemyType]?.size ?: 0
       if (roll <= spawnData.spanProbability && spawnCount < spawnData.maxSpawn) {
-        var enemyTypeMap: MutableMap<String, View>?
-        enemyTypeMap = enemyMap.get(spawnData.enemyType)
-        if (enemyTypeMap == null) {
-          enemyTypeMap = mutableMapOf()
-          enemyMap.put(spawnData.enemyType, enemyTypeMap)
+        var enemyList: MutableList<Enemy>?
+        enemyList = enemyMap[spawnData.enemyType]
+        if (enemyList == null) {
+          enemyList = mutableListOf()
+          enemyMap.put(spawnData.enemyType, enemyList)
         }
         spawnCount++
-        enemyTypeMap["${spawnData.enemyType}_${spawnCount}"] = createEnemy(spawnData.enemyType, spawnCount)
+        enemyList += createEnemy(spawnData.enemyType, spawnCount)
         return spawnData.enemyType
       }
     }
     return null
   }
 
-  fun despawn(objectName: String) {
-    val split = objectName.split("_")
-    val enemyType = split[0]
-    val enemyIndex = split[1]
-    enemyMap[enemyType]?.remove("${enemyType}_${enemyIndex}")
+  fun despawn(enemy: Enemy) {
+    val split = enemy.name.split("_")
+    val enemyType = split.first()
+    enemyMap[enemyType]?.remove(enemy)
   }
 
-  fun createEnemy(enemyType: String, spawnIndex: Int): View {
+  fun getEnemy(name: String): Enemy? {
+    val split = name.split("_")
+    val enemyType = split.first()
+    return enemyMap[enemyType]?.find { enemy: Enemy -> enemy.name == name }
+  }
+
+  fun createEnemy(enemyType: String, spawnIndex: Int): Enemy {
     when (enemyType) {
       "Spider" -> {
-        return Spider(parent, "${enemyType}_$spawnIndex").view
+        return Spider(parent, "${enemyType}_$spawnIndex")
       }
     }
-    return Spider(parent, "Spider_$spawnIndex").view
+    return Spider(parent, "Spider_$spawnIndex")
   }
 
-  fun getEnemies(): List<View> {
+  fun getEnemyViews(): List<View> {
     var enemies: MutableList<View> = mutableListOf()
     enemyMap.values.forEach { enemyTypeMap ->
-      enemyTypeMap.values.forEach { view ->
-        enemies.add(view)
+      enemyTypeMap.forEach { enemy ->
+        enemies.add(enemy.view)
       }
     }
     return enemies
   }
 }
 
-class Spider(parent: Container, name: String) {
+open class Enemy(val parent: Container, val name: String) {
+  lateinit var view: View
+}
+
+class Spider(parent: Container, name: String) : Enemy(parent, name) {
   companion object {
     lateinit var spiderSprite: SpriteAnimation
     var random = Random(0)
@@ -76,8 +85,6 @@ class Spider(parent: Container, name: String) {
   var yDir: Int = 0
   var moveCount = 0
 
-  val view: View
-
   init {
 
     if (random.nextBoolean()) {
@@ -86,13 +93,13 @@ class Spider(parent: Container, name: String) {
       direction = 1
     }
     view = parent.image(spiderSprite[0]) {
+      name(name)
       smoothing = false
       val xPos = if (direction == -1) {
         29 * LawnObject.cellSize
       } else {
         0
       }
-      println("spawning spider at ${xPos} ${36 * LawnObject.cellSize}")
       position(xPos, 27 * LawnObject.cellSize)
       scale = (LawnObject.cellSize / bitmap.height).toDouble()
       hitTestEnabled = true
@@ -104,18 +111,24 @@ class Spider(parent: Container, name: String) {
         }
         x += xDir * LawnObject.cellSize / 6
         y += yDir * LawnObject.cellSize / 6
+
+        if (y > Lawn.fieldHeight) {
+          y = Lawn.fieldHeight.toDouble()
+          yDir = -1
+        }
+        if (y < Lawn.fieldHeight * 2 / 3) {
+          y = Lawn.fieldHeight * 2.0 / 3
+          yDir = 1
+        }
         moveCount++
-        if (moveCount >= LawnObject.cellSize) {
+        if (moveCount >= Lawn.cellSize * 2) {
           moveCount = 0
         }
-        if (x > LawnObject.cellSize * 30 || x < 0) {
-          LevelData.despawn(name)
-          parent.removeChild(this)
+        if (x+Lawn.cellSize > Lawn.fieldWith || x < 0) {
+          LevelData.despawn(this@Spider)
+          parent.removeChild(view)
         }
       }
     }
-
   }
-
-
 }
