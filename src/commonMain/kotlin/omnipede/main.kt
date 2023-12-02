@@ -35,6 +35,10 @@ class StartScene : Scene() {
     var playerSprite = resourcesVfs["Player.png"].readBitmap()
     var flowerSprite = resourcesVfs["Flower.png"].readBitmap()
 
+    var spiderSpriteMap = resourcesVfs["Spider.png"].readBitmap()
+    var spiderAnimation = SpriteAnimation(spiderSpriteMap,16,8)
+    Spider.spiderSprite=spiderAnimation
+
     var cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
     var fieldWidth = cellSize * 30
     var leftIndent = (views.virtualWidth - fieldWidth) / 2
@@ -67,6 +71,8 @@ class StartScene : Scene() {
 
     var infoText: Text = text("2048", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent + cellSize * 30)
 
+    LevelData.init(this)
+
     var shooting = false
 
     this.addUpdater {
@@ -86,13 +92,15 @@ class StartScene : Scene() {
 
       var playerHit = collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)
       if (playerHit != null) {
-        var gridX = (player.x / cellSize).roundToInt()
-        var gridY = (player.y / cellSize).roundToInt()
-        var dirX = if (pos.x > 0.2) 1 else if (pos.x < -0.2) -1 else 0
-        var dirY = if (pos.y > 0.2) 1 else if (pos.y < -0.2) -1 else 0
-        if (Lawn.get(gridX, gridY) == null) {
-          player.x = (gridX * cellSize).toDouble()
-          player.y = (gridY * cellSize).toDouble()
+        var tryCount = 8
+        var xMove=-pos.x * (cellSize/8)
+        var yMove=pos.y * (cellSize/16)
+        while (tryCount-- > 0) {
+          player.x+=xMove
+          player.y+=yMove
+          if(collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)==null) {
+            break
+          }
         }
       }
 
@@ -130,8 +138,11 @@ class StartScene : Scene() {
           zap.play(PlaybackTimes(1))
         }
       }
-    }
 
+      LevelData.spawn(1)
+
+
+    }
   }
 
   private fun collisionWithViews(view: View, otherViews: List<View>, inset: Double = 0.0): View? {
@@ -152,6 +163,4 @@ class StartScene : Scene() {
     }
     return null
   }
-
-
 }
