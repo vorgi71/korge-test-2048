@@ -3,6 +3,7 @@ package omnipede
 import korlibs.datastructure.iterators.*
 import korlibs.image.bitmap.*
 import korlibs.korge.view.*
+import korlibs.math.geom.*
 import kotlin.random.*
 
 abstract class LawnObject(var x: Int, var y: Int, var viewObject: View) {
@@ -17,12 +18,12 @@ abstract class LawnObject(var x: Int, var y: Int, var viewObject: View) {
 
 }
 
-class Mushroom(x: Int, y: Int, viewObject: View, var damage: Int = 0) : LawnObject(x, y, viewObject) {
+class Mushroom(x: Int, y: Int, viewObject: View, private var damage: Int = 0) : LawnObject(x, y, viewObject) {
   companion object {
     lateinit var mushroomAnimation: SpriteAnimation
     fun mushroom(x: Int, y: Int): Mushroom {
-      var damage = 0
-      var mushroomView = parent.image(mushroomAnimation[0]) {
+      val damage = 0
+      val mushroomView = parent.image(mushroomAnimation[0]) {
         smoothing = false
         scale = (cellSize / bitmap.width).toDouble()
         position(x * cellSize, y * cellSize)
@@ -51,7 +52,7 @@ class Flower(x: Int, y: Int, viewObject: View) : LawnObject(x, y, viewObject) {
   companion object {
     lateinit var flowerSprite: Bitmap
     fun flower(x: Int, y: Int): Flower {
-      var flowerView = parent.image(flowerSprite) {
+      val flowerView = parent.image(flowerSprite) {
         smoothing = false
         scale = (cellSize / bitmap.width).toDouble()
         position(x * cellSize, y * cellSize)
@@ -72,6 +73,7 @@ class Flower(x: Int, y: Int, viewObject: View) : LawnObject(x, y, viewObject) {
 }
 
 object Lawn {
+
   var objects: MutableList<LawnObject> = mutableListOf()
   var cellSize = 16
   var fieldWith = 250
@@ -116,6 +118,10 @@ object Lawn {
     return null
   }
 
+  fun get(point: PointInt): LawnObject? {
+    return get(point.x, point.y)
+  }
+
   fun getViewObjects(): List<View> {
     val viewObjects = objects.map { it.viewObject }
     return viewObjects
@@ -128,5 +134,9 @@ object Lawn {
       }
       println()
     }
+  }
+
+  fun screenToLawn(x: Double, y: Double): PointInt {
+    return PointInt((((x + (cellSize / 2)) / cellSize)).toInt(), (((y + (cellSize / 2)) / cellSize)).toInt())
   }
 }

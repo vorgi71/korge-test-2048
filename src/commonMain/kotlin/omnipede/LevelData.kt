@@ -1,26 +1,28 @@
 package omnipede
 
-import korlibs.image.color.*
+import korlibs.audio.sound.*
 import korlibs.korge.view.*
-import korlibs.math.geom.*
+import omnipede.MillipedeState.MOVING
+import omnipede.MillipedeState.TURNING
+import kotlin.coroutines.*
 import kotlin.math.*
 import kotlin.random.*
 
 data class SpawnData(var enemyType: String, var spanProbability: Int, var maxSpawn: Int)
 
 object LevelData {
-  lateinit var parent: Container
+  private lateinit var parent: Container
 
-  var levelData = mapOf(
+  private var levelData = mapOf(
     1 to listOf(
-      SpawnData("Spider", 5000, 8),
+      SpawnData("Spider", 50, 1),
       SpawnData("Millipede", 10_000, 1)
     )
   )
 
-  var random = Random(0)
+  private var random = Random(0)
 
-  var enemyMap = mutableMapOf<String, MutableList<Enemy>>()
+  private var enemyMap = mutableMapOf<String, MutableList<Enemy>>()
 
   var score: Int = 0
 
@@ -29,8 +31,8 @@ object LevelData {
   }
 
   fun spawn(level: Int): String? {
-    var spawnList = levelData[level]
-    var roll = random.nextInt(10_000)
+    val spawnList = levelData[level]
+    val roll = random.nextInt(10_000)
     spawnList?.forEach { spawnData ->
       var spawnCount = enemyMap[spawnData.enemyType]?.size ?: 0
       if (roll <= spawnData.spanProbability && spawnCount < spawnData.maxSpawn) {
@@ -38,7 +40,7 @@ object LevelData {
         enemyList = enemyMap[spawnData.enemyType]
         if (enemyList == null) {
           enemyList = mutableListOf()
-          enemyMap.put(spawnData.enemyType, enemyList)
+          enemyMap[spawnData.enemyType] = enemyList
         }
         spawnCount++
         enemyList += createEnemy(spawnData.enemyType, spawnCount)
@@ -48,9 +50,10 @@ object LevelData {
     return null
   }
 
-  fun despawn(enemy: Enemy) {
+  fun deSpawn(enemy: Enemy) {
     val split = enemy.name.split("_")
     val enemyType = split.first()
+    enemy.deSpawn()
     enemyMap[enemyType]?.remove(enemy)
   }
 
@@ -60,27 +63,27 @@ object LevelData {
     return enemyMap[enemyType]?.find { enemy: Enemy -> enemy.name == name }
   }
 
-  fun createEnemy(enemyType: String, spawnIndex: Int): Enemy {
+  private fun createEnemy(enemyType: String, spawnIndex: Int): Enemy {
     when (enemyType) {
       "Spider" -> {
         return Spider(parent, "${enemyType}_$spawnIndex")
       }
 
       "Millipede" -> {
-        var _spawnIndex = spawnIndex
+        var internalSpawnIndex = spawnIndex
         for (d in 1..<10) {
           enemyMap[enemyType]?.add(
-            Millipede(parent, "${enemyType}_${_spawnIndex++}")
+            Millipede(parent, "${enemyType}_${internalSpawnIndex++}")
           )
         }
-        return Millipede(parent, "${enemyType}_${_spawnIndex++}")
+        return Millipede(parent, "${enemyType}_${internalSpawnIndex}")
       }
     }
     return Spider(parent, "Spider_$spawnIndex")
   }
 
   fun getEnemyViews(): List<View> {
-    var enemies: MutableList<View> = mutableListOf()
+    val enemies: MutableList<View> = mutableListOf()
     enemyMap.values.forEach { enemyTypeMap ->
       enemyTypeMap.forEach { enemy ->
         enemies.add(enemy.view)
@@ -98,6 +101,7 @@ abstract class Enemy(val parent: Container, val name: String) {
   lateinit var view: View
 
   abstract fun getPoints(player: View): Int
+  abstract fun deSpawn()
 }
 
 class Spider(parent: Container, name: String) : Enemy(parent, name) {
@@ -105,18 +109,17 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
     lateinit var spiderSprite: SpriteAnimation
   }
 
-  val direction: Int
-  var xDir: Int = 0
-  var yDir: Int = 0
-  var moveCount = 0
+  private val direction: Int = if (random.nextBoolean()) {
+    -1
+  } else {
+    1
+  }
+  private var xDir: Int = 0
+  private var yDir: Int = 0
+  private var moveCount = 0
 
   init {
 
-    if (random.nextBoolean()) {
-      direction = -1
-    } else {
-      direction = 1
-    }
     view = parent.image(spiderSprite[0]) {
       name(name)
       smoothing = false
@@ -131,8 +134,8 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
 
       addUpdater {
         if (moveCount == 0) {
-          if (random.nextBoolean()) yDir = -1 else yDir = 1
-          if (random.nextBoolean()) xDir = direction else xDir = 0
+          yDir = if (random.nextBoolean()) -1 else 1
+          xDir = if (random.nextBoolean()) direction else 0
         }
         x += xDir * LawnObject.cellSize / 6
         y += yDir * LawnObject.cellSize / 6
@@ -150,7 +153,7 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
           moveCount = 0
         }
         if (x + Lawn.cellSize > Lawn.fieldWith || x < 0) {
-          LevelData.despawn(this@Spider)
+          LevelData.deSpawn(this@Spider)
           parent.removeChild(view)
         }
       }
@@ -158,7 +161,7 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
   }
 
   override fun getPoints(player: View): Int {
-    var distance = abs(view.y - player.y) / Lawn.cellSize
+    val distance = abs(view.y - player.y) / Lawn.cellSize
     if (distance < 1) {
       return 1200
     }
@@ -170,53 +173,124 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
     }
     return 300
   }
+
+  override fun deSpawn() {
+
+  }
+}
+
+enum class MillipedeState {
+  MOVING,
+  TURNING
 }
 
 class Millipede(parent: Container, name: String) : Enemy(parent, name) {
   companion object {
+    lateinit var krabbler: Sound
+    lateinit var millipedeSprite: SpriteAnimation
     var partCount = 0
     var spawnX = 0
   }
 
-  var isHead = false
-
+  private var isHead = false
+  private var state = MOVING
+  private var xDir = 1
+  private var saveX = 0
+  private var saveY = 0
+  private var animationCount = 0
 
   init {
     if (partCount == 0) {
       spawnX = 10 + random.nextInt(20)
-      spawnHead()
+      isHead = true
+      spawnPart()
       partCount++
       spawnX--
     } else {
-      spawnBody()
+      isHead = false
+      spawnPart()
       partCount++
       spawnX--
     }
   }
 
   override fun getPoints(player: View): Int {
-    if (isHead) {
-      return 20
+    return if (isHead) {
+      20
     } else {
-      return 10
+      10
     }
   }
 
-  fun spawnHead() {
-    view = parent.roundRect(Size(Lawn.cellSize, Lawn.cellSize), RectCorners(5.0), fill = Colors.GREEN) {
-      position(spawnX * Lawn.cellSize, Lawn.cellSize)
-    }
-    view.name = name
-    view.addUpdater {
-
-    }
-
+  override fun deSpawn() {
+    var lawnPosition = Lawn.screenToLawn(view.x, view.y)
+    partCount--
+    Lawn.objects.add(Mushroom.mushroom(lawnPosition.x, lawnPosition.y))
   }
 
-  fun spawnBody() {
-    view = parent.roundRect(Size(Lawn.cellSize, Lawn.cellSize), RectCorners(5.0), fill = Colors.DARKGREEN) {
-      position(spawnX * Lawn.cellSize, Lawn.cellSize)
+  private fun spawnPart() {
+    var spriteIndex = if (isHead) {
+      0
+    } else {
+      4
     }
-    view.name = name
+    view = parent.image(millipedeSprite[spriteIndex]) {
+      name(this@Millipede.name)
+      position(spawnX * Lawn.cellSize, 0)
+      smoothing = false
+      scale = (LawnObject.cellSize / bitmap.height).toDouble()
+      hitTestEnabled = true
+
+      addUpdater {
+        when (state) {
+          MOVING -> {
+            x += xDir * 2
+            if (animationCount++ > 8) {
+              // alternate animation
+              animationCount = 0
+              if (spriteIndex % 2 == 0) {
+                spriteIndex++
+              } else {
+                spriteIndex--
+              }
+              this.bitmap = millipedeSprite[spriteIndex]
+            }
+
+            if (abs(x - saveX) > Lawn.cellSize) {
+              var lawnPosition = Lawn.screenToLawn(x, y)
+              var nextObject = Lawn.get(lawnPosition.x + xDir, lawnPosition.y)
+              var hitBound = false
+              if (xDir > 0) {
+                if (x > Lawn.fieldWith) {
+                  hitBound = true
+                }
+              }
+              if (xDir < 0) {
+                if (x < 0) {
+                  hitBound = true
+                }
+              }
+              if (nextObject != null || hitBound) {
+                x -= ((x + Lawn.cellSize / 2) % Lawn.cellSize)
+                state = TURNING
+                spriteIndex += xDir * 2
+                this.bitmap = millipedeSprite[spriteIndex]
+                xDir = -xDir
+                saveY = y.toInt()
+              }
+            }
+          }
+
+          TURNING -> {
+            y += 2
+            if (abs(y - saveY) > Lawn.cellSize) {
+              y -= y % Lawn.cellSize
+              saveX = x.toInt()
+              state = MOVING
+            }
+          }
+        }
+      }
+    }
   }
 }

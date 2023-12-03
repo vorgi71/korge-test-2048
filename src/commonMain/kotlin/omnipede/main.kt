@@ -26,28 +26,32 @@ suspend fun main() = Korge(
 
 class StartScene : Scene() {
   override suspend fun SContainer.sceneMain() {
-    var debugFont = resourcesVfs["clear_sans.fnt"].readBitmapFont()
-    var font = resourcesVfs["PublicPixel.ttf"].readTtfFont()
-    var zap = resourcesVfs["zap.wav"].readSound()
+    val debugFont = resourcesVfs["clear_sans.fnt"].readBitmapFont()
+    val font = resourcesVfs["PublicPixel.ttf"].readTtfFont()
 
-    var mushroomSpriteMap = resourcesVfs["Mushroom.png"].readBitmap()
-    var mushroomAnimation = SpriteAnimation(mushroomSpriteMap, 8, 8, columns = 4)
+    val zap = resourcesVfs["zap.wav"].readSound()
+    val krabbler = resourcesVfs["Millipede.mp3"].readSound()
+    Millipede.krabbler=krabbler
 
-    var playerSprite = resourcesVfs["Player.png"].readBitmap()
-    var flowerSprite = resourcesVfs["Flower.png"].readBitmap()
+    val mushroomSpriteMap = resourcesVfs["Mushroom.png"].readBitmap()
+    val mushroomAnimation = SpriteAnimation(mushroomSpriteMap, 8, 8, columns = 4)
 
-    var spiderSpriteMap = resourcesVfs["Spider.png"].readBitmap()
-    var spiderAnimation = SpriteAnimation(spiderSpriteMap, 16, 8)
+    val playerSprite = resourcesVfs["Player.png"].readBitmap()
+    val flowerSprite = resourcesVfs["Flower.png"].readBitmap()
+
+    val spiderAnimation = SpriteAnimation(resourcesVfs["Spider.png"].readBitmap(), 16, 8)
     Spider.spiderSprite = spiderAnimation
 
-    var cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
-    var fieldWidth = cellSize * 30
-    var leftIndent = (views.virtualWidth - fieldWidth) / 2
-    var fieldHeight = cellSize * 32
-    var topIndent = (views.virtualHeight - fieldHeight) / 2
+    val millipedeAnimation = SpriteAnimation(resourcesVfs["Millipede.png"].readBitmap(),8,8, columns = 8)
+    Millipede.millipedeSprite=millipedeAnimation
 
-    val bgField = roundRect(Size(fieldWidth, fieldHeight), RectCorners(1.0), fill = Colors["#22151a"]) {
-      position(leftIndent, topIndent)
+    val cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
+    val fieldWidth = cellSize * 30
+    val leftIndent = (views.virtualWidth - fieldWidth) / 2
+    val fieldHeight = cellSize * 32
+    val topIndent = (views.virtualHeight - fieldHeight) / 2
+
+    roundRect(Size(fieldWidth, fieldHeight), RectCorners(1.0), fill = Colors["#22151a"]) {
       hitTestEnabled = false
     }
 
@@ -56,23 +60,23 @@ class StartScene : Scene() {
       hitTestEnabled = false
     }
 
-    var player = image(playerSprite) {
+    val player = image(playerSprite) {
       smoothing = false
       scale = (cellSize.toDouble() / bitmap.width)
       position(15 * cellSize, 32 * cellSize)
       hitTestEnabled = true
     }
 
-    var missile: RoundRect = roundRect(Size(4, cellSize), RectCorners(1), Colors.LIGHTCORAL) {
+    val missile: RoundRect = roundRect(Size(4, cellSize), RectCorners(1), Colors.LIGHTCORAL) {
       position(leftIndent + cellSize * 15, topIndent + cellSize * 29)
       hitTestEnabled = true
     }
 
     Lawn.init(this, cellSize, fieldWidth, fieldHeight, mushroomAnimation, flowerSprite, 126)
 
-    var infoText: Text =
+    val infoText: Text =
       text("2048", cellSize * 1, Colors.WHITE, debugFont).position(leftIndent, topIndent + cellSize * 30)
-    var scoreText: Text = text("0", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent)
+    val scoreText: Text = text("0", cellSize * 1, Colors.WHITE, font).position(0, 0)
 
     LevelData.init(this)
 
@@ -86,18 +90,18 @@ class StartScene : Scene() {
       }
       val rawGamepad0 = input.gamepads[0]
       val pressedStart: Boolean = if (rawGamepad0[GameButton.START] > 0.5) true else false
-      val pressedX = if (rawGamepad0.get(GameButton.PS_CROSS) > 0.5) true else false
+      val pressedX = if (rawGamepad0[GameButton.PS_CROSS] > 0.5) true else false
 
       val pos: Point = rawGamepad0[GameStick.LEFT]
       infoText.text = "leftIndent $leftIndent topIndent $topIndent cellSize $cellSize"
       player.x += pos.x * (cellSize / 2)
       player.y -= pos.y * (cellSize / 3)
 
-      var playerHit = collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)
+      val playerHit = collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)
       if (playerHit != null) {
         var tryCount = 8
-        var xMove = -pos.x * (cellSize / 8)
-        var yMove = pos.y * (cellSize / 16)
+        val xMove = -pos.x * (cellSize / 8)
+        val yMove = pos.y * (cellSize / 16)
         while (tryCount-- > 0) {
           player.x += xMove
           player.y += yMove
@@ -132,7 +136,7 @@ class StartScene : Scene() {
           missileHit.removeFromParent()
 
           println ("missile hit(${missileHit.name}")
-          var enemy: Enemy? = missileHit.name?.let { name -> LevelData.getEnemy(name) }
+          val enemy: Enemy? = missileHit.name?.let { name -> LevelData.getEnemy(name) }
           if (enemy != null) {
             val points = enemy.getPoints(player)
             if (points >= 300) {
@@ -140,7 +144,7 @@ class StartScene : Scene() {
             }
             LevelData.score += points
             scoreText.text = "${LevelData.score}"
-            LevelData.despawn(enemy)
+            LevelData.deSpawn(enemy)
           }
         }
 
@@ -150,6 +154,22 @@ class StartScene : Scene() {
           missile.y = player.y
         }
       }
+
+      // control sound
+      var krabblerSoundChannel: SoundChannel? =null
+      if(LevelData.getEnemyViews().any { view -> view.name?.startsWith("Millipede") ?: false }) {
+        if(krabblerSoundChannel?.playing==false) {
+          coroutineContext.launchUnscoped {
+            krabblerSoundChannel = krabbler.play(PlaybackTimes.INFINITE)
+          }
+        }
+      } else {
+        if(krabblerSoundChannel?.playing == true) {
+          krabblerSoundChannel?.stop()
+        }
+      }
+
+
 
       if (pressedStart) {
         player.position(cellSize * 15, cellSize * 29)
@@ -166,7 +186,7 @@ class StartScene : Scene() {
   }
 
   private fun spawnPointAnimation(parent: SContainer, xPos: Double, yPos: Double, points: Int) {
-    var text = parent.text("$points", Lawn.cellSize * 0.8, color = Colors.WHITE, DefaultTtfFont)
+    val text = parent.text("$points", Lawn.cellSize * 0.8, color = Colors.WHITE, DefaultTtfFont)
       .position(xPos - Lawn.cellSize, yPos)
     var durationCount = 0
     text.addUpdater {
