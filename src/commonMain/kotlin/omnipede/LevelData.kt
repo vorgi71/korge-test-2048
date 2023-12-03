@@ -1,6 +1,9 @@
 package omnipede
 
+import korlibs.image.color.*
 import korlibs.korge.view.*
+import korlibs.math.geom.*
+import kotlin.math.*
 import kotlin.random.*
 
 data class SpawnData(var enemyType: String, var spanProbability: Int, var maxSpawn: Int)
@@ -8,11 +11,18 @@ data class SpawnData(var enemyType: String, var spanProbability: Int, var maxSpa
 object LevelData {
   lateinit var parent: Container
 
-  var levelData = mapOf(1 to listOf(SpawnData("Spider", 50, 1)))
+  var levelData = mapOf(
+    1 to listOf(
+      SpawnData("Spider", 5000, 8),
+      SpawnData("Millipede", 10_000, 1)
+    )
+  )
 
   var random = Random(0)
 
   var enemyMap = mutableMapOf<String, MutableList<Enemy>>()
+
+  var score: Int = 0
 
   fun init(parent: Container) {
     this.parent = parent
@@ -55,6 +65,16 @@ object LevelData {
       "Spider" -> {
         return Spider(parent, "${enemyType}_$spawnIndex")
       }
+
+      "Millipede" -> {
+        var _spawnIndex = spawnIndex
+        for (d in 1..<10) {
+          enemyMap[enemyType]?.add(
+            Millipede(parent, "${enemyType}_${_spawnIndex++}")
+          )
+        }
+        return Millipede(parent, "${enemyType}_${_spawnIndex++}")
+      }
     }
     return Spider(parent, "Spider_$spawnIndex")
   }
@@ -70,14 +90,19 @@ object LevelData {
   }
 }
 
-open class Enemy(val parent: Container, val name: String) {
+abstract class Enemy(val parent: Container, val name: String) {
+  companion object {
+    var random = Random(0)
+  }
+
   lateinit var view: View
+
+  abstract fun getPoints(player: View): Int
 }
 
 class Spider(parent: Container, name: String) : Enemy(parent, name) {
   companion object {
     lateinit var spiderSprite: SpriteAnimation
-    var random = Random(0)
   }
 
   val direction: Int
@@ -124,11 +149,74 @@ class Spider(parent: Container, name: String) : Enemy(parent, name) {
         if (moveCount >= Lawn.cellSize * 2) {
           moveCount = 0
         }
-        if (x+Lawn.cellSize > Lawn.fieldWith || x < 0) {
+        if (x + Lawn.cellSize > Lawn.fieldWith || x < 0) {
           LevelData.despawn(this@Spider)
           parent.removeChild(view)
         }
       }
     }
+  }
+
+  override fun getPoints(player: View): Int {
+    var distance = abs(view.y - player.y) / Lawn.cellSize
+    if (distance < 1) {
+      return 1200
+    }
+    if (distance < 2) {
+      return 900
+    }
+    if (distance < 4) {
+      return 600
+    }
+    return 300
+  }
+}
+
+class Millipede(parent: Container, name: String) : Enemy(parent, name) {
+  companion object {
+    var partCount = 0
+    var spawnX = 0
+  }
+
+  var isHead = false
+
+
+  init {
+    if (partCount == 0) {
+      spawnX = 10 + random.nextInt(20)
+      spawnHead()
+      partCount++
+      spawnX--
+    } else {
+      spawnBody()
+      partCount++
+      spawnX--
+    }
+  }
+
+  override fun getPoints(player: View): Int {
+    if (isHead) {
+      return 20
+    } else {
+      return 10
+    }
+  }
+
+  fun spawnHead() {
+    view = parent.roundRect(Size(Lawn.cellSize, Lawn.cellSize), RectCorners(5.0), fill = Colors.GREEN) {
+      position(spawnX * Lawn.cellSize, Lawn.cellSize)
+    }
+    view.name = name
+    view.addUpdater {
+
+    }
+
+  }
+
+  fun spawnBody() {
+    view = parent.roundRect(Size(Lawn.cellSize, Lawn.cellSize), RectCorners(5.0), fill = Colors.DARKGREEN) {
+      position(spawnX * Lawn.cellSize, Lawn.cellSize)
+    }
+    view.name = name
   }
 }

@@ -18,7 +18,7 @@ import kotlin.math.*
 suspend fun main() = Korge(
   windowSize = Size(640, 800),
   title = "omnipede",
-  backgroundColor = RGBA(254, 247, 240)
+  backgroundColor = RGBA(25, 48, 20)
 ) {
   val sceneContainer = sceneContainer()
   sceneContainer.changeTo { StartScene() }
@@ -26,7 +26,8 @@ suspend fun main() = Korge(
 
 class StartScene : Scene() {
   override suspend fun SContainer.sceneMain() {
-    var font = resourcesVfs["clear_sans.fnt"].readBitmapFont()
+    var debugFont = resourcesVfs["clear_sans.fnt"].readBitmapFont()
+    var font = resourcesVfs["PublicPixel.ttf"].readTtfFont()
     var zap = resourcesVfs["zap.wav"].readSound()
 
     var mushroomSpriteMap = resourcesVfs["Mushroom.png"].readBitmap()
@@ -36,8 +37,8 @@ class StartScene : Scene() {
     var flowerSprite = resourcesVfs["Flower.png"].readBitmap()
 
     var spiderSpriteMap = resourcesVfs["Spider.png"].readBitmap()
-    var spiderAnimation = SpriteAnimation(spiderSpriteMap,16,8)
-    Spider.spiderSprite=spiderAnimation
+    var spiderAnimation = SpriteAnimation(spiderSpriteMap, 16, 8)
+    Spider.spiderSprite = spiderAnimation
 
     var cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
     var fieldWidth = cellSize * 30
@@ -45,7 +46,7 @@ class StartScene : Scene() {
     var fieldHeight = cellSize * 32
     var topIndent = (views.virtualHeight - fieldHeight) / 2
 
-    val bgField = roundRect(Size(fieldWidth, fieldHeight), RectCorners(1.0), fill = Colors["#1E1F22"]) {
+    val bgField = roundRect(Size(fieldWidth, fieldHeight), RectCorners(1.0), fill = Colors["#22151a"]) {
       position(leftIndent, topIndent)
       hitTestEnabled = false
     }
@@ -69,7 +70,9 @@ class StartScene : Scene() {
 
     Lawn.init(this, cellSize, fieldWidth, fieldHeight, mushroomAnimation, flowerSprite, 126)
 
-    var infoText: Text = text("2048", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent + cellSize * 30)
+    var infoText: Text =
+      text("2048", cellSize * 1, Colors.WHITE, debugFont).position(leftIndent, topIndent + cellSize * 30)
+    var scoreText: Text = text("0", cellSize * 1, Colors.WHITE, font).position(leftIndent, topIndent)
 
     LevelData.init(this)
 
@@ -86,19 +89,19 @@ class StartScene : Scene() {
       val pressedX = if (rawGamepad0.get(GameButton.PS_CROSS) > 0.5) true else false
 
       val pos: Point = rawGamepad0[GameStick.LEFT]
-      infoText.text = "pos: $pos start: $pressedStart pressedX: $pressedX shooting: $shooting"
+      infoText.text = "leftIndent $leftIndent topIndent $topIndent cellSize $cellSize"
       player.x += pos.x * (cellSize / 2)
       player.y -= pos.y * (cellSize / 3)
 
       var playerHit = collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)
       if (playerHit != null) {
         var tryCount = 8
-        var xMove=-pos.x * (cellSize/8)
-        var yMove=pos.y * (cellSize/16)
+        var xMove = -pos.x * (cellSize / 8)
+        var yMove = pos.y * (cellSize / 16)
         while (tryCount-- > 0) {
-          player.x+=xMove
-          player.y+=yMove
-          if(collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize)==null) {
+          player.x += xMove
+          player.y += yMove
+          if (collisionWithViews(player, Lawn.getViewObjects(), 0.2 * cellSize) == null) {
             break
           }
         }
@@ -114,21 +117,29 @@ class StartScene : Scene() {
       } else {
         missile.y -= cellSize
 
-        var missileDestroyed=false
+        var missileDestroyed = false
         var missileHit = collisionWithViews(missile, Lawn.getViewObjects())
 
         if (missileHit != null) {
           val hitObject = Lawn.objects.find { lawnObject -> lawnObject.viewObject == missileHit }
           hitObject?.hit()
-          missileDestroyed=true
+          missileDestroyed = true
         }
 
-        missileHit=collisionWithViews(missile,LevelData.getEnemyViews())
-        if(missileHit !=null) {
-          missileDestroyed=true
+        missileHit = collisionWithViews(missile, LevelData.getEnemyViews())
+        if (missileHit != null) {
+          missileDestroyed = true
           missileHit.removeFromParent()
-          var enemy:Enemy?= missileHit.name?.let { name -> LevelData.getEnemy(name) }
-          if(enemy!=null) {
+
+          println ("missile hit(${missileHit.name}")
+          var enemy: Enemy? = missileHit.name?.let { name -> LevelData.getEnemy(name) }
+          if (enemy != null) {
+            val points = enemy.getPoints(player)
+            if (points >= 300) {
+              spawnPointAnimation(this, missile.x, missile.y, points)
+            }
+            LevelData.score += points
+            scoreText.text = "${LevelData.score}"
             LevelData.despawn(enemy)
           }
         }
@@ -151,8 +162,19 @@ class StartScene : Scene() {
       }
 
       LevelData.spawn(1)
+    }
+  }
 
-
+  private fun spawnPointAnimation(parent: SContainer, xPos: Double, yPos: Double, points: Int) {
+    var text = parent.text("$points", Lawn.cellSize * 0.8, color = Colors.WHITE, DefaultTtfFont)
+      .position(xPos - Lawn.cellSize, yPos)
+    var durationCount = 0
+    text.addUpdater {
+      color = color.withA(255 - durationCount * 3)
+      y += 1
+      if (durationCount++ > 50) {
+        this.removeFromParent()
+      }
     }
   }
 
