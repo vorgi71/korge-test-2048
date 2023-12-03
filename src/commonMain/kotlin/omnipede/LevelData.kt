@@ -1,26 +1,63 @@
 package omnipede
 
 import korlibs.audio.sound.*
+import korlibs.image.color.*
 import korlibs.korge.view.*
+import korlibs.korge.view.filter.*
+import korlibs.time.*
 import omnipede.BeetleState.*
-import omnipede.MillipedeState.MOVING
-import omnipede.MillipedeState.TURNING
 import kotlin.coroutines.*
 import kotlin.math.*
 import kotlin.random.*
+import kotlin.time.*
 
-data class SpawnData(var enemyType: String, var spanProbability: Int, var maxSpawn: Int)
+data class SpawnData(
+  var enemyType: String,
+  var spanProbability: Int,
+  var maxSpawn: Int,
+  var duration: Long = 0,
+)
+
+class LevelDataContainer(val colorFilter: List<Filter>, val spawnData: List<List<SpawnData>>) {
+  fun getSpawnData(level: Int): List<SpawnData> {
+    if (level < spawnData.size ) {
+      return spawnData[level]
+    }
+    return spawnData[spawnData.size - 1]
+  }
+
+  fun getFilter(level: Int): Filter {
+    return colorFilter[level % colorFilter.size]
+  }
+}
 
 object LevelData {
   private lateinit var parent: Container
 
-  private var levelData = mapOf(
-    1 to listOf(
+  private var levelData = listOf(
+    listOf(
       SpawnData("Spider", 5, 1),
-      SpawnData("Beetle", 15000, 1),
-      SpawnData("Millipede", 10_000, 1)
+      SpawnData("Beetle", 3, 1),
+      SpawnData("Millipede", 20_000, 1)
+    ),
+    listOf(
+      SpawnData("Spider", 5, 1),
+      SpawnData("Beetle", 5, 1),
+      SpawnData("Millipede", 20_000, 1)
+    ),
+    listOf(
+      SpawnData("Bee", 1_000, 8, 5000)
     )
   )
+
+  private var filter= listOf(
+    ColorMatrixFilter(ColorMatrixFilter.IDENTITY_MATRIX),
+    ColorMatrixFilter(ColorMatrixFilter.SEPIA_MATRIX,0.5),
+    ColorMatrixFilter(ColorMatrixFilter.GRAYSCALE_MATRIX,0.3),
+    BlurFilter()
+  )
+
+  private var levelDataContainer = LevelDataContainer(filter, levelData)
 
   private var random = Random(0)
 
@@ -32,8 +69,17 @@ object LevelData {
     this.parent = parent
   }
 
-  fun spawn(level: Int): String? {
-    val spawnList = levelData[level]
+  var startTime: DateTime = DateTime(0)
+  var currentLevel = 1
+  var spawnList = levelDataContainer.getSpawnData(currentLevel)
+
+  fun startLevel(level: Int) {
+    currentLevel = level
+    spawnList = levelDataContainer.getSpawnData(level)
+    startTime = DateTime.now()
+  }
+
+  fun spawn(): String? {
     val roll = random.nextInt(20_000)
     spawnList?.forEach { spawnData ->
       var spawnCount = enemyMap[spawnData.enemyType]?.size ?: 0
@@ -70,8 +116,9 @@ object LevelData {
       "Spider" -> {
         return Spider(parent, "${enemyType}_$spawnIndex")
       }
+
       "Beetle" -> {
-        return Beetle(parent,"${enemyType}_$spawnIndex")
+        return Beetle(parent, "${enemyType}_$spawnIndex")
       }
 
       "Millipede" -> {
@@ -95,6 +142,27 @@ object LevelData {
       }
     }
     return enemies
+  }
+
+  fun getLevelFilter(level: Int): Filter {
+    return levelDataContainer.getFilter(level)
+  }
+
+  fun isLevelOver(level: Int): Boolean {
+    var duration = 0L
+    if (spawnList.any { spawnData ->
+        duration = spawnData.duration
+        duration > 0
+      }) {
+      if (startTime + duration.milliseconds < DateTime.now()) {
+        return true
+      }
+    } else {
+      if (!enemyMap.values.any { enemies -> enemies.any { enemy -> enemy is Millipede } }) {
+        return true
+      }
+    }
+    return false
   }
 }
 

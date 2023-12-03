@@ -11,6 +11,7 @@ import korlibs.io.file.std.*
 import korlibs.korge.*
 import korlibs.korge.scene.*
 import korlibs.korge.view.*
+import korlibs.korge.view.filter.*
 import korlibs.math.*
 import korlibs.math.geom.*
 import kotlin.math.*
@@ -45,7 +46,7 @@ class StartScene : Scene() {
     val millipedeAnimation = SpriteAnimation(resourcesVfs["Millipede.png"].readBitmap(), 8, 8, columns = 8)
     Millipede.millipedeSprite = millipedeAnimation
 
-    val beetleAnimation = SpriteAnimation(resourcesVfs["Beetle.png"].readBitmap(), 8, 8)
+    val beetleAnimation = SpriteAnimation(resourcesVfs["Beetle.png"].readBitmap(), 8, 8, columns = 4)
     Beetle.beetleSprite = beetleAnimation
 
 
@@ -88,6 +89,10 @@ class StartScene : Scene() {
     var krabblerSoundChannel: SoundChannel? = null
     var krabblerPlaying = false
 
+    var level =1
+
+    LevelData.startLevel(level)
+
     this.addUpdater {
       val gamepads = input.connectedGamepads
       if (gamepads.size == 0) {
@@ -99,7 +104,7 @@ class StartScene : Scene() {
       val pressedX = if (rawGamepad0[GameButton.PS_CROSS] > 0.5) true else false
 
       val pos: Point = rawGamepad0[GameStick.LEFT]
-      infoText.text = "leftIndent $leftIndent topIndent $topIndent cellSize $cellSize"
+      infoText.text = "level: $level "
       player.x += pos.x * (cellSize / 2)
       player.y -= pos.y * (cellSize / 3)
 
@@ -162,7 +167,7 @@ class StartScene : Scene() {
 
       // control sound
 
-      if (LevelData.getEnemyViews().any { view -> view.name?.startsWith("Millipede") ?: false }) {
+      if (LevelData.getEnemyViews().any { view -> view.name?.startsWith("Millipede") == true }) {
         if (!krabblerPlaying) {
           krabblerPlaying = true
           coroutineContext.launchUnscoped {
@@ -176,8 +181,6 @@ class StartScene : Scene() {
         }
       }
 
-
-
       if (pressedStart) {
         player.position(cellSize * 15, cellSize * 29)
       }
@@ -188,7 +191,12 @@ class StartScene : Scene() {
         }
       }
 
-      LevelData.spawn(1)
+      LevelData.spawn()
+
+      if(LevelData.isLevelOver(level)) {
+        LevelData.startLevel(++level)
+        this.filter=LevelData.getLevelFilter(level)
+      }
     }
   }
 

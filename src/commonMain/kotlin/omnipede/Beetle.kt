@@ -2,8 +2,6 @@ package omnipede
 
 import korlibs.korge.view.*
 import omnipede.BeetleState.*
-import kotlin.math.*
-
 
 enum class BeetleState {
   DOWN,
@@ -17,18 +15,17 @@ class Beetle(parent: Container, name: String) : Enemy(parent, name) {
     lateinit var beetleSprite: SpriteAnimation
   }
 
-  private val direction: Int = if (random.nextBoolean()) {
-    -1
-  } else {
-    1
-  }
+  private val direction: Int = if (random.nextBoolean()) -1 else 1
+
   private var beetleState = DOWN
   private var xDir: Int = 0
   private var yDir: Int = 0
+  private var spriteIndex = if(direction==1) 2 else 0
+  private var moveCount: Int =0
 
   init {
 
-    view = parent.image(beetleSprite[0]) {
+    view = parent.image(beetleSprite[spriteIndex]) {
       name(name)
       smoothing = false
       val xPos = if (direction == -1) {
@@ -69,10 +66,17 @@ class Beetle(parent: Container, name: String) : Enemy(parent, name) {
           }
         }
 
-        println("beetleState: $beetleState")
+        if(moveCount % 24==0) {
+          if(spriteIndex%2==0) {
+            spriteIndex++
+          } else {
+            spriteIndex--
+          }
+          bitmap= beetleSprite[spriteIndex]
+        }
 
-        x += xDir * LawnObject.cellSize / 10
-        y += yDir * LawnObject.cellSize / 10
+        x += xDir * LawnObject.cellSize / 10.0
+        y += yDir * LawnObject.cellSize / 10.0
 
         if (beetleState == DOWN && (y + Lawn.cellSize > Lawn.fieldHeight)) {
           y = Lawn.fieldHeight.toDouble()
@@ -95,6 +99,8 @@ class Beetle(parent: Container, name: String) : Enemy(parent, name) {
           LevelData.deSpawn(this@Beetle)
           parent.removeChild(view)
         }
+
+        moveCount++
       }
     }
   }
