@@ -45,6 +45,10 @@ class StartScene : Scene() {
     val millipedeAnimation = SpriteAnimation(resourcesVfs["Millipede.png"].readBitmap(), 8, 8, columns = 8)
     Millipede.millipedeSprite = millipedeAnimation
 
+    val beetleAnimation = SpriteAnimation(resourcesVfs["Beetle.png"].readBitmap(), 8, 8)
+    Beetle.beetleSprite = beetleAnimation
+
+
     val cellSize = min(views.virtualWidth / 30.0, views.virtualHeight / 32.0).toInt()
     val fieldWidth = cellSize * 30
     val leftIndent = (views.virtualWidth - fieldWidth) / 2
@@ -137,7 +141,6 @@ class StartScene : Scene() {
           missileDestroyed = true
           missileHit.removeFromParent()
 
-          println("missile hit(${missileHit.name}")
           val enemy: Enemy? = missileHit.name?.let { name -> LevelData.getEnemy(name) }
           if (enemy != null) {
             val points = enemy.getPoints(player)
@@ -161,22 +164,15 @@ class StartScene : Scene() {
 
       if (LevelData.getEnemyViews().any { view -> view.name?.startsWith("Millipede") ?: false }) {
         if (!krabblerPlaying) {
-          println("playing krabbler ${krabblerSoundChannel?.playing}")
           krabblerPlaying = true
           coroutineContext.launchUnscoped {
-            krabblerSoundChannel = krabbler.play(PlaybackTimes(10))
-            krabblerSoundChannel?.await { current, total ->
-              if (current == total) {
-                println("${current}/${total}")
-                krabblerPlaying = false
-              }
-            }
+            krabblerSoundChannel = krabbler.play(PlaybackTimes(500))
           }
         }
       } else {
-        println("stopping krabbler ${krabblerSoundChannel?.playing}")
         if (krabblerSoundChannel?.playing == true) {
           krabblerSoundChannel?.stop()
+          krabblerPlaying=false
         }
       }
 
